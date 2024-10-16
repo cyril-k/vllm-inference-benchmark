@@ -2,9 +2,8 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ include "inference-benchmark-backend.fullname" . }}
-  namespace: {{ .Release.Namespace }}
   labels:
-    app: {{ include "inference-benchmark-backend.fullname" .  }}
+    {{- include "inference-benchmark-backend.labels" . | nindent 4 }}
 spec:
   type: {{ .Values.service.type }}
   ports:
@@ -12,8 +11,5 @@ spec:
       targetPort: http
       protocol: TCP
       name: http
-    - name: workers
-      port: 6379
-  clusterIP: None
   selector:
-    app: {{ include "inference-benchmark-backend.fullname" .  }}
+    {{- include "inference-benchmark-backend.selectorLabels" . | nindent 4 }}
