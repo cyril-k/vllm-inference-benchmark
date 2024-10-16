@@ -91,8 +91,10 @@ spec:
             - -c
             - |
             {{- if eq . 0 }}
+              echo "starting Ray head process..."
               ray start --block {{ $rayCommand }} > /dev/null &
               sleep 30
+              echo "done"
 
               get_node_count() {
                 ray status | grep -c "node_"
@@ -104,6 +106,7 @@ spec:
                   {{ $vllmCommand }}
                   break
                 fi
+                echo "waiting for Ray worker node(s) to be available..."
                 sleep 10
               done
             {{- else }}
