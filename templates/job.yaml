@@ -1,17 +1,12 @@
-apiVersion: apps/v1
-kind: Deployment
+apiVersion: batch/v1
+kind: Job
 metadata:
   name: {{ include "inference-benchmark-backend.fullname" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "inference-benchmark-backend.labels" . | nindent 4 }}
+    app: {{ include "inference-benchmark-backend.fullname" . }}
 spec:
-  {{- if not .Values.autoscaling.enabled }}
-  replicas: {{ .Values.replicaCount }}
-  {{- end }}
-  selector:
-    matchLabels:
-      {{- include "inference-benchmark-backend.selectorLabels" . | nindent 6 }}
+  parallelism: {{ .Values.replicaCount }}
   template:
     metadata:
       {{- with .Values.podAnnotations }}
@@ -19,40 +14,71 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        {{- include "inference-benchmark-backend.labels" . | nindent 8 }}
-        {{- with .Values.podLabels }}
-        {{- toYaml . | nindent 8 }}
-        {{- end }}
+        app: {{ include "inference-benchmark-backend.fullname" . }}
     spec:
+      restartPolicy: Never
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      
-      # serviceAccountName: {{ include "inference-benchmark-backend.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
         - name: load-generator
-          image: ghcr.io/cyril-k/load-generator:latest
+          # image: ghcr.io/cyril-k/load-generator:latest
+          image: {{ .Values.image.loadGeneratorURI }}:{{ .Values.image.loadGeneratorTag }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["fastapi", "run", "app/app.py", "--host", "0.0.0.0", "--port", "8080"]
           ports:
-            - containerPort: 8080
+            - name: http
+              containerPort: 8080
               protocol: TCP
           resources:
             limits:
-              cpu: "8"  # Minimal CPU and memory for the sidecar
+              cpu: "8" 
               memory: "16Gi"
             requests:
               cpu: "4"
               memory: "8Gi"
           env:
+            - name: BENCHMARK_RESULTS_BUCKET
+              value: "inference-benchmark-results"
+            - name: BENCHMARK_RESULTS_DIRECTORY
+              value: "nnodes{{ .Values.replicaCount }}_{{ now | date "2006-01-02T15:04:05Z" }}"
+            - name: SERVED_MODEL
+              value: {{ .Values.servedModel }}
             - name: HF_TOKEN
-              value: ""
+              value: {{ .Values.hfToken }}
+            - name: JOB_NAMESPACE
+              value: {{ .Release.Namespace }}
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: model-storage-secret
+                  key: accessKeyID
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: model-storage-secret
+                  key: secretAccessKey
+            - name: AWS_S3_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: model-storage-secret
+                  key: endpoint
+            - name: AWS_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: model-storage-secret
+                  key: region
+          volumeMounts:
+            - name: benchmark-specs-volume
+              mountPath: /etc/config
         - name: {{ .Chart.Name }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
-          image: vllm/vllm-openai:v0.6.2
+          # image: vllm/vllm-openai:v0.6.2
+          image: {{ .Values.image.vllmURI }}:{{ .Values.image.vllmTag }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - containerPort: 8000
@@ -94,49 +120,24 @@ spec:
               memory: "600Gi"
               nvidia.com/gpu: 8
           args:
-            # - --model=meta-llama/Llama-3.1-8B-Instruct
-            - --model=/model-storage/meta-llama/Llama-3.1-405B-Instruct-FP8
-            # - --model=/model-storage/neuralmagic/Meta-Llama-3.1-405B-Instruct-FP8
-            - --served-model-name=meta-llama/Llama-3.1-405B-Instruct-FP8
-            # - --served-model-name=meta-llama/Llama-3.1-8B-Instruct
+            - --model=/model-storage/{{ .Values.servedModel }}
+            - --served-model-name={{ .Values.servedModel }}
             - --tensor-parallel-size=8
-            - --max-num-seqs=256
-            # - --max-num-seqs=1024
-            # - --max-num-batched-tokens=32768
             - --max-num-batched-tokens=16384 
-            # - --max-num-batched-tokens=8192
-            # <--
-            # - --max-num-batched-tokens=128000
-            # - --max-num-batched-tokens=65536
-            # - --max-model-len=65536
-            # - --max-model-len=116000 <--
             - --max-model-len=16384 
-            # - --max-model-len=8192
-            # <--
-            # - --max-model-len=11600
-            # - --max-model-len=128000
-            # - --gpu-memory-utilization=0.9
-            # - --gpu-memory-utilization=0.95
-            - --num-scheduler-steps=10
-            # - --enable-chunked-prefill
+            - --num-scheduler-steps=16
             - --enable-chunked-prefill=False
             - --seed=42
-            - --disable-async-output-proc
-            - --disable-log-stats
           env:
             - name: DO_NOT_TRACK
               value: "1"
             - name: HF_TOKEN
-              value: ""
+              value: {{ .Values.hfToken }}
           volumeMounts:
             - mountPath: /dev/shm
               name: dshm
             - mountPath: /root/.cache/huggingface
               name: cache-volume
-            # - name: ib
-            #   mountPath: /dev/infiniband
-            # - mountPath: /topo-config
-            #   name: topo-config-volume
             - mountPath: /model-storage
               name: model-storage-volume
       volumes:
@@ -145,16 +146,13 @@ spec:
             medium: Memory
         - name: cache-volume
           emptyDir: { }
-        # - name: ib
-        #   hostPath:
-        #     path: /dev/infiniband
-        # - name: topo-config-volume
-        #   configMap:
-        #     name: topo-config
         - name: model-storage-volume
           persistentVolumeClaim:
             claimName: csi-s3-model-storage-pvc-v1 
             readOnly: false
+        - name: benchmark-specs-volume
+          configMap:
+            name: benchmark-specs
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
