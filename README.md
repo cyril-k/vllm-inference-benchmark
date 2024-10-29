@@ -73,7 +73,8 @@ To check on the benchmark progress, connect to `grafana`:
 ```bash
 kubectl --namespace o11y port-forward service/grafana 8080:80
 ```
-You may create a dashboard with the contents of `grafana_dashboard.json` for monitoring.
+You may create a dashboard with the contents of `grafana_dashboard.json` for monitoring:
+![dashboard](assets/dashboard.png)
 
 ## Stress testing
 
@@ -85,4 +86,4 @@ This leads to the following power consumption for 11h:
 - avg per GPU consumption - 675W, going over 710W on max
 - host consumption 5.47kW
 
-![alt text](assets/single-node.png)
+![single-node-power-consumption](assets/single-node.png)
