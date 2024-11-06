@@ -3,8 +3,8 @@
 # Declare variables to be passed into your templates.
 
 replicaCount: 2
-# servedModel: meta-llama/Llama-3.1-8B-Instruct
-servedModel: meta-llama/Llama-3.1-405B-Instruct-FP8
+# servedModel: &model meta-llama/Llama-3.1-8B-Instruct
+servedModel: &model meta-llama/Llama-3.1-405B-Instruct-FP8
 
 benchmarkSpecs:
   - dataset_name: sharegpt
@@ -15,7 +15,7 @@ benchmarkSpecs:
     dataset_path: app/ShareGPT_V3_unfiltered_cleaned_split.json
     host: localhost
     port: 8000
-    model: meta-llama/Llama-3.1-405B-Instruct-FP8
+    model: *model
   - dataset_name: sonnet
     num_prompts: 1000
     request_rate: 12
@@ -27,7 +27,7 @@ benchmarkSpecs:
     dataset_path: app/sonnet.txt
     host: localhost
     port: 8000
-    model: meta-llama/Llama-3.1-405B-Instruct-FP8
+    model: *model
 
 image:
   pullPolicy: Always
