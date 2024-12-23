@@ -42,34 +42,37 @@ spec:
               memory: "8Gi"
           env:
             - name: BENCHMARK_RESULTS_BUCKET
-              value: "inference-benchmark-results"
+              value: {{ .Values.resultBucket }}
             - name: BENCHMARK_RESULTS_DIRECTORY
-              value: "nnodes{{ .Values.replicaCount }}_{{ now | date "2006-01-02T15:04:05Z" }}"
+              value: "{{ .Values.resultDir }}_nnodes{{ .Values.replicaCount }}_{{ now | date "2006-01-02T15:04:05Z" }}"
             - name: SERVED_MODEL
               value: {{ .Values.servedModel }}
             - name: HF_TOKEN
-              value: {{ .Values.hfToken }}
+              valueFrom:
+                secretKeyRef:
+                  name: hf-secret
+                  key: hfToken
             - name: JOB_NAMESPACE
               value: {{ .Release.Namespace }}
             - name: AWS_ACCESS_KEY_ID
               valueFrom:
                 secretKeyRef:
-                  name: model-storage-secret
+                  name: {{ .Values.objectStorageSecretName }}
                   key: accessKeyID
             - name: AWS_SECRET_ACCESS_KEY
               valueFrom:
                 secretKeyRef:
-                  name: model-storage-secret
+                  name: {{ .Values.objectStorageSecretName }}
                   key: secretAccessKey
             - name: AWS_S3_ENDPOINT
               valueFrom:
                 secretKeyRef:
-                  name: model-storage-secret
+                  name: {{ .Values.objectStorageSecretName }}
                   key: endpoint
             - name: AWS_REGION
               valueFrom:
                 secretKeyRef:
-                  name: model-storage-secret
+                  name: {{ .Values.objectStorageSecretName }}
                   key: region
           volumeMounts:
             - name: benchmark-specs-volume
@@ -77,39 +80,11 @@ spec:
         - name: {{ .Chart.Name }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
-          # image: vllm/vllm-openai:v0.6.2
           image: {{ .Values.image.vllmURI }}:{{ .Values.image.vllmTag }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - containerPort: 8000
               protocol: TCP
-          livenessProbe:
-            failureThreshold: 3
-            httpGet:
-              path: /health
-              port: 8000
-              scheme: HTTP
-            initialDelaySeconds: 240
-            periodSeconds: 5
-            successThreshold: 1
-            timeoutSeconds: 1
-          readinessProbe:
-            failureThreshold: 3
-            httpGet:
-              path: /health
-              port: 8000
-              scheme: HTTP
-            initialDelaySeconds: 240
-            periodSeconds: 5
-            successThreshold: 1
-            timeoutSeconds: 1
-          startupProbe:
-            failureThreshold: 360
-            httpGet:
-              path: /health
-              port: 8000
-              scheme: HTTP
-            periodSeconds: 5
           resources:
             limits:
               cpu: "152" 
@@ -132,7 +107,10 @@ spec:
             - name: DO_NOT_TRACK
               value: "1"
             - name: HF_TOKEN
-              value: {{ .Values.hfToken }}
+              valueFrom:
+                secretKeyRef:
+                  name: hf-secret
+                  key: hfToken
           volumeMounts:
             - mountPath: /dev/shm
               name: dshm
@@ -146,10 +124,16 @@ spec:
             medium: Memory
         - name: cache-volume
           emptyDir: { }
+         {{- if .Values.sharedStorage.enable }}
+        - name: model-storage-volume
+          persistentVolumeClaim:
+            claimName: {{ include "inference-benchmark-backend.fullname" . }}
+        {{- else }}
         - name: model-storage-volume
           persistentVolumeClaim:
             claimName: csi-s3-model-storage-pvc-v1 
             readOnly: false
+        {{- end }}
         - name: benchmark-specs-volume
           configMap:
             name: benchmark-specs

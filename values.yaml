@@ -1,15 +1,17 @@
 # Default values for inference-benchmark-backend.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
-
+resultBucket: inference-benchmark-results
+resultDir: acceptance-test-run-1
 replicaCount: 2
 # servedModel: &model meta-llama/Llama-3.1-8B-Instruct
 servedModel: &model meta-llama/Llama-3.1-405B-Instruct-FP8
+# servedModel: &model meta-llama/Llama-3.1-405B-Instruct
 
 benchmarkSpecs:
   - dataset_name: sharegpt
     num_prompts: 1000
-    request_rate: 6
+    request_rate: 10
     backend: openai-chat 
     endpoint: /v1/chat/completions
     dataset_path: app/ShareGPT_V3_unfiltered_cleaned_split.json
@@ -18,7 +20,7 @@ benchmarkSpecs:
     model: *model
   - dataset_name: sonnet
     num_prompts: 1000
-    request_rate: 12
+    request_rate: 12 # 10 for 405 Llama in bf16 runningon H200
     sonnet_input_len: 512
     sonnet_prefix_len: 128
     sonnet_output_len: 16
@@ -70,3 +72,10 @@ resources: {}
 tolerations: []
 
 hfToken: ""
+
+objectStorageSecretName: model-storage-secret
+
+sharedStorage:
+  enable: true
+  filestoreModelsDir: /mnt/data/model-storage
+  size: 4Ti

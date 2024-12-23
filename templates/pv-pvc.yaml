@@ -1,0 +1,34 @@
+{{- if .Values.sharedStorage.enable }}
+kind: PersistentVolume
+apiVersion: v1
+metadata:
+  name: {{ include "inference-benchmark-backend.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ include "inference-benchmark-backend.fullname" . }}
+spec:
+  storageClassName: hostpath
+  capacity:
+    storage: {{ .Values.sharedStorage.size }}
+  accessModes:
+    - ReadWriteMany
+  hostPath:
+    path: {{ .Values.sharedStorage.filestoreModelsDir }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+    "helm.sh/resource-policy": keep
+  name: {{ include "inference-benchmark-backend.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ include "inference-benchmark-backend.fullname" . }}
+spec:
+  storageClassName: hostpath
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: {{ .Values.sharedStorage.size }}
+{{- end }}
