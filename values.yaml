@@ -76,6 +76,6 @@ hfToken: ""
 objectStorageSecretName: model-storage-secret
 
 sharedStorage:
-  enable: true
+  enable: false
   filestoreModelsDir: /mnt/data/model-storage
   size: 4Ti
