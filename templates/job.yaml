@@ -131,7 +131,7 @@ spec:
         {{- else }}
         - name: model-storage-volume
           persistentVolumeClaim:
-            claimName: csi-s3-model-storage-pvc-v1 
+            claimName: csi-s3-model-storage-pvc-v2 
             readOnly: false
         {{- end }}
         - name: benchmark-specs-volume
